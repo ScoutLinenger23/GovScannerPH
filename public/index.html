@@ -1,1 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    // Applied before first paint to avoid a flash of the wrong theme on load.
+    (function () {
+      var saved = localStorage.getItem('theme');
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Philippines Gov Web Monitor</title>
+  <meta name="description" content="Live HTTP status, latency, and uptime monitoring for Philippine government websites.">
+  <meta property="og:title" content="Philippines Gov Web Monitor">
+  <meta property="og:description" content="Live HTTP status, latency, and uptime monitoring for Philippine government websites.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4' fill='%23002875'/%3E%3Ccircle cx='12' cy='12' r='7' fill='none' stroke='%23FCD116' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='2.4' fill='%23CE1126'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- CDN Libraries for Browser-Side PDF Generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --bg: #F4F6F9;
+      --card-bg: #FFFFFF;
+      --border: #D7DEE7;
+      --text: #1C2A3A;
+      --dim: #5B6B7C;
+      --green: #1B7A43;
+      --yellow: #A8620A;
+      --red: #CE1126;
+      --cyan: #0038A8;      /* Philippine flag navy — primary action color */
+      --purple: #7A1F3D;    /* formal deep maroon — secondary action distinction */
+      --navy-deep: #002875; /* constant across themes — used for buttons/borders/accents */
+      --heading: #002875;   /* theme-adaptive — used for heading TEXT specifically */
+      --gold: #FCD116;      /* Philippine flag gold — masthead accent only */
+    }
 
+    [data-theme="dark"] {
+      --bg: #0b111e;
+      --card-bg: #111a2e;
+      --border: #1e2d4a;
+      --text: #e2e8f0;
+      --dim: #94a3b8;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --cyan: #38bdf8;
+      --purple: #c084fc;
+      --heading: #eef2f9; /* near-white heading text for dark backgrounds */
+      /* --navy-deep and --gold stay the same in both themes — the masthead/brand
+         identity is intentionally constant regardless of light or dark mode */
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      padding-top: 30px;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* Letterhead-style masthead strip, fixed to the very top of the viewport */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, var(--navy-deep), var(--cyan));
+      z-index: 999;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      top: 6px; left: 0; right: 0;
+      height: 2px;
+      background: var(--gold);
+      z-index: 999;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 15px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .title-group .eyebrow {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 5px;
+    }
+
+    .title-group h1 {
+      margin: 0;
+      font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--heading);
+      letter-spacing: 0.01em;
+    }
+
+    .title-group p {
+      margin: 6px 0 0 0;
+      color: var(--dim);
+      font-size: 0.85rem;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--cyan);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 2px rgba(28, 42, 58, 0.06);
+    }
+
+    .action-btn:hover:not(:disabled) {
+      background: var(--navy-deep);
+      color: #fff;
+      border-color: var(--navy-deep);
+    }
+
+    .action-btn.toggled {
+      background: var(--cyan);
+      color: #fff;
+      border-color: var(--cyan);
+    }
+
+    .pdf-btn {
+      color: var(--purple);
+      border-color: rgba(122, 31, 61, 0.35);
+    }
+
+    .pdf-btn:hover:not(:disabled) {
+      background: var(--purple);
+      border-color: var(--purple);
+      color: #fff;
+    }
+
+    .refresh-icon {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .spinning { animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    .stats { display: flex; gap: 8px; }
+
+    .stat-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      text-align: center;
+      min-width: 55px;
+      box-shadow: 0 1px 2px rgba(28, 42, 58, 0.06);
+    }
+
+    .stat-box .val { font-size: 1.1rem; font-weight: 700; }
+    .stat-box .lbl { font-size: 0.65rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .search-input, .sort-select {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .search-input { flex: 1; min-width: 200px; }
+    .sort-select { cursor: pointer; }
+    .search-input:focus, .sort-select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 56, 168, 0.12); }
+
+    .filter-group { display: flex; gap: 6px; }
+
+    .filter-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--dim);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .filter-btn.active {
+      background: var(--navy-deep);
+      color: #fff;
+      border-color: var(--navy-deep);
+    }
+
+    .legend-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 0.78rem;
+      color: var(--dim);
+      box-shadow: 0 1px 2px rgba(28, 42, 58, 0.06);
+    }
+
+    .legend-title { font-weight: 700; color: var(--text); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.04em; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    .category-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 24px 0 10px 0;
+      color: var(--heading);
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .category-heading:first-child { margin-top: 0; }
+    .category-heading .count { color: var(--dim); font-weight: 500; font-family: 'Public Sans', sans-serif; letter-spacing: 0; }
+    .category-heading::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--dim);
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background: var(--card-bg);
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 3px rgba(28, 42, 58, 0.07);
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(28, 42, 58, 0.10); }
+    .card:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+    .card.skeleton { cursor: default; }
+    .card.skeleton .skel-line {
+      background: var(--border);
+      border-radius: 4px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .card-2xx { border-top: 3px solid var(--green); }
+    .card-4xx { border-top: 3px solid var(--yellow); }
+    .card-err { border-top: 3px solid var(--red); }
+
+    .card-header { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    .site-name-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .site-logo { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; background: var(--border); }
+    .site-name { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+
+    .code-display { text-align: center; font-size: 2.2rem; font-weight: 800; margin: 6px 0 2px 0; font-family: 'Source Serif 4', Georgia, serif; }
+    .blocked-display { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 8px 0 6px 0; }
+    .blocked-icon { width: 26px; height: 26px; opacity: 0.85; }
+    .blocked-code { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; opacity: 0.8; }
+    .code-2xx { color: var(--green); }
+    .code-3xx { color: var(--cyan); }
+    .code-4xx { color: var(--yellow); }
+    .code-err { color: var(--red); }
+
+    .uptime-bar-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .uptime-badge { font-size: 0.7rem; font-weight: 700; color: var(--green); }
+    .uptime-badge.low { color: var(--yellow); }
+    .uptime-badge.critical { color: var(--red); }
+
+    .history-bars { display: flex; gap: 2px; }
+    .bar { width: 4px; height: 12px; border-radius: 1px; }
+    .bar-1 { background-color: var(--green); }
+    .bar-0 { background-color: var(--red); }
+
+    .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--dim); }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot-green { background-color: var(--green); }
+    .dot-yellow { background-color: var(--yellow); }
+    .dot-red { background-color: var(--red); }
+
+    footer {
+      margin-top: 40px;
+      padding: 20px 0 10px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--dim);
+    }
+    footer strong { color: var(--heading); }
+    footer a { color: var(--cyan); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    footer .contact-line { margin-top: 4px; }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(28, 42, 58, 0.55);
+      backdrop-filter: blur(4px);
+      display: flex; justify-content: center; align-items: center;
+      z-index: 1000;
+      transition: opacity 0.3s ease;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-top: 4px solid var(--navy-deep);
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 480px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 12px 32px rgba(28, 42, 58, 0.22);
+    }
+
+    .modal-badge {
+      display: inline-block;
+      background: rgba(168, 98, 10, 0.1);
+      color: var(--yellow);
+      border: 1px solid var(--yellow);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .modal-btn {
+      background: var(--navy-deep);
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      width: 100%;
+    }
+    .modal-btn:hover { background: var(--cyan); }
+
+    /* Per-site detail modal */
+    .detail-modal .modal-content {
+      max-width: 560px;
+      text-align: left;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .detail-logo { width: 40px; height: 40px; border-radius: 6px; background: var(--border); flex-shrink: 0; }
+    .detail-title { flex: 1; min-width: 0; }
+    .detail-title h2 { margin: 0; font-family: 'Source Serif 4', Georgia, serif; font-size: 1.1rem; color: var(--heading); word-break: break-word; }
+    .detail-title a { color: var(--cyan); font-size: 0.8rem; text-decoration: none; }
+    .detail-title a:hover { text-decoration: underline; }
+    .detail-description { font-size: 0.85rem; color: var(--dim); line-height: 1.5; margin: 0 0 14px 0; }
+    .detail-close {
+      background: none; border: 1px solid var(--border); color: var(--dim);
+      width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 1rem; flex-shrink: 0;
+    }
+    .detail-close:hover { color: #fff; background: var(--navy-deep); border-color: var(--navy-deep); }
+
+    .detail-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+    .detail-stat { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center; }
+    .detail-stat .val { font-size: 1.05rem; font-weight: 700; }
+    .detail-stat .lbl { font-size: 0.65rem; color: var(--dim); text-transform: uppercase; margin-top: 2px; letter-spacing: 0.03em; }
+
+    .detail-section-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); margin: 16px 0 8px 0; }
+    .detail-chart { display: flex; align-items: flex-end; gap: 2px; height: 50px; }
+    .detail-chart .dbar { flex: 1; border-radius: 2px 2px 0 0; min-width: 3px; }
+
+    .incident-list { display: flex; flex-direction: column; gap: 6px; }
+    .incident-item { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 0.78rem; display: flex; justify-content: space-between; gap: 10px; }
+    .incident-item .dur { color: var(--red); font-weight: 700; white-space: nowrap; }
+    .incident-empty { color: var(--dim); font-size: 0.8rem; padding: 8px 0; }
+    .down-since-banner {
+      background: rgba(206, 17, 38, 0.06); border: 1px solid rgba(206, 17, 38, 0.35); color: var(--red);
+      border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; margin-bottom: 12px; font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="modal-overlay" id="welcomeModal">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+      <span class="modal-badge">EDUCATIONAL PURPOSE ONLY</span>
+      <h2 id="welcomeTitle" style="color:var(--heading); margin-top:0; font-family:'Source Serif 4',Georgia,serif;">Welcome to PH Gov Web Monitor</h2>
+      <p style="font-size:0.85rem; color: var(--text);">This dashboard provides real-time HTTP response status, latency metrics, historical uptime tracking, and PDF export reports for government endpoints in the Philippines.</p>
+      <button class="modal-btn" onclick="closeModal()">Enter Dashboard</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay detail-modal" id="detailModal" style="display:none;">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="detail-header">
+        <img class="detail-logo" id="detailLogo" alt="" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%277%27 fill=%27%2364748b%27/%3E%3C/svg%3E'">
+        <div class="detail-title">
+          <h2 id="detailTitle">—</h2>
+          <a id="detailLink" href="#" target="_blank" rel="noopener noreferrer">Visit official site ↗</a>
+        </div>
+        <button class="detail-close" id="detailCloseBtn" aria-label="Close detail view">✕</button>
+      </div>
+
+      <p id="detailDescription" class="detail-description"></p>
+
+      <div id="detailDownBanner" class="down-since-banner" style="display:none;"></div>
+
+      <div class="detail-stats">
+        <div class="detail-stat"><div class="val" id="detailStatus">—</div><div class="lbl">HTTP Code</div></div>
+        <div class="detail-stat"><div class="val" id="detailUptime">—</div><div class="lbl">Uptime</div></div>
+        <div class="detail-stat"><div class="val" id="detailLatency">—</div><div class="lbl">Latency</div></div>
+      </div>
+
+      <div class="detail-section-title">Recent Check History</div>
+      <div class="detail-chart" id="detailChart"></div>
+
+      <div class="detail-section-title">Downtime Incidents</div>
+      <div class="incident-list" id="detailIncidents"></div>
+    </div>
+  </div>
+
+  <header>
+    <div class="title-group">
+      <span class="eyebrow">Independent Monitoring Tool</span>
+      <h1>PHILIPPINES GOV WEB MONITOR</h1>
+      <p id="timestamp">Loading dashboard...</p>
+    </div>
+
+    <div class="header-controls">
+      <button class="action-btn" id="themeToggleBtn" onclick="toggleTheme()" aria-label="Toggle dark mode">
+        <span id="themeIcon">🌙</span>
+        <span id="themeBtnText">Dark Mode</span>
+      </button>
+
+      <button class="action-btn" id="notifyBtn" onclick="toggleNotifications()" aria-pressed="false">
+        <span id="notifyIcon">🔔</span>
+        <span id="notifyBtnText">Notify Me</span>
+      </button>
+
+      <button class="action-btn" id="manualRefreshBtn" onclick="manualRefresh()">
+        <svg class="refresh-icon" id="refreshIcon" viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        <span id="refreshBtnText">Refresh</span>
+      </button>
+
+      <button class="action-btn" onclick="exportCSV()">
+        <svg class="refresh-icon" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        <span>Export CSV</span>
+      </button>
+
+      <button class="action-btn pdf-btn" onclick="exportPDF()">
+        <svg class="refresh-icon" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        <span>Export PDF</span>
+      </button>
+
+      <div class="stats">
+        <div class="stat-box"><div class="val code-2xx" id="cnt-2xx">0</div><div class="lbl">OK</div></div>
+        <div class="stat-box"><div class="val code-3xx" id="cnt-3xx">0</div><div class="lbl">REDIR</div></div>
+        <div class="stat-box"><div class="val code-4xx" id="cnt-4xx">0</div><div class="lbl">4XX</div></div>
+        <div class="stat-box"><div class="val code-err" id="cnt-err">0</div><div class="lbl">ERROR</div></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="filter-bar">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search domain (e.g. pnp, doh, manila)..." oninput="renderCards()">
+    <select class="sort-select" id="sortSelect" onchange="renderCards()">
+      <option value="default">Sort: Default</option>
+      <option value="latency">Sort: Latency (slowest first)</option>
+      <option value="uptime">Sort: Uptime (worst first)</option>
+      <option value="alpha">Sort: A–Z</option>
+    </select>
+    <div class="filter-group">
+      <button class="filter-btn active" id="filter-all" onclick="setFilter('all')">All</button>
+      <button class="filter-btn" id="filter-online" onclick="setFilter('online')">Online</button>
+      <button class="filter-btn" id="filter-errors" onclick="setFilter('errors')">Errors</button>
+    </div>
+    <div class="filter-group">
+      <button class="filter-btn" id="groupToggle" onclick="toggleGrouping()">Group by Category</button>
+    </div>
+  </div>
+
+  <div class="legend-panel">
+    <span class="legend-title">Legend:</span>
+    <div class="legend-item"><span class="legend-dot dot-green"></span> <span><strong>2xx/3xx</strong>: Online / Redirect</span></div>
+    <div class="legend-item"><span class="legend-dot dot-yellow"></span> <span><strong>4xx</strong>: Client Error / WAF Block (403 = Blocked)</span></div>
+    <div class="legend-item"><span class="legend-dot dot-red"></span> <span><strong>0 / 5xx</strong>: Connection Error / Timeout</span></div>
+  </div>
+
+  <div id="gridContainer"></div>
+
+  <footer>
+    <p class="contact-line" style="max-width:520px; margin:0 auto 14px auto; line-height:1.5;">
+      <strong>About:</strong> An independent uptime monitor for Philippine government websites. Not an official government tool or service.
+    </p>
+    <p>© 2026–Present | Philippines Gov Web Monitor</p>
+    <p>Made with ❤️ by <strong>Emmanuel Bosing</strong></p>
+    <p class="contact-line">Email: <a href="mailto:bosingemmanuel@gmail.com">bosingemmanuel@gmail.com</a></p>
+  </footer>
+
+  <script>
+    // ---- Category grouping map (hostname without "www." -> category label) ----
+    const CATEGORY_MAP = {
+      'caloocancity.gov.ph': 'Local Government (LGU)', 'laspinascity.gov.ph': 'Local Government (LGU)',
+      'makati.gov.ph': 'Local Government (LGU)', 'malabon.gov.ph': 'Local Government (LGU)',
+      'mandaluyong.gov.ph': 'Local Government (LGU)', 'manila.gov.ph': 'Local Government (LGU)',
+      'marikina.gov.ph': 'Local Government (LGU)', 'muntinlupacity.gov.ph': 'Local Government (LGU)',
+      'navotas.gov.ph': 'Local Government (LGU)', 'paranaquecity.gov.ph': 'Local Government (LGU)',
+      'pasay.gov.ph': 'Local Government (LGU)', 'pasigcity.gov.ph': 'Local Government (LGU)',
+      'pateros.gov.ph': 'Local Government (LGU)', 'quezoncity.gov.ph': 'Local Government (LGU)',
+      'sanjuancity.gov.ph': 'Local Government (LGU)', 'taguig.gov.ph': 'Local Government (LGU)',
+      'valenzuela.gov.ph': 'Local Government (LGU)', 'mmda.gov.ph': 'Local Government (LGU)',
+
+      'op-proper.gov.ph': 'Office of the President & VP', 'ovp.gov.ph': 'Office of the President & VP',
+
+      'senate.gov.ph': 'Legislative & Judiciary', 'congress.gov.ph': 'Legislative & Judiciary',
+      'sc.judiciary.gov.ph': 'Legislative & Judiciary', 'ca.judiciary.gov.ph': 'Legislative & Judiciary',
+      'sb.judiciary.gov.ph': 'Legislative & Judiciary', 'cta.judiciary.gov.ph': 'Legislative & Judiciary',
+
+      'dar.gov.ph': 'Executive Departments', 'da.gov.ph': 'Executive Departments', 'dbm.gov.ph': 'Executive Departments',
+      'deped.gov.ph': 'Executive Departments', 'doe.gov.ph': 'Executive Departments', 'denr.gov.ph': 'Executive Departments',
+      'dof.gov.ph': 'Executive Departments', 'dfa.gov.ph': 'Executive Departments', 'doh.gov.ph': 'Executive Departments',
+      'dhsud.gov.ph': 'Executive Departments', 'dict.gov.ph': 'Executive Departments', 'dilg.gov.ph': 'Executive Departments',
+      'doj.gov.ph': 'Executive Departments', 'dole.gov.ph': 'Executive Departments', 'dnd.gov.ph': 'Executive Departments',
+      'dpwh.gov.ph': 'Executive Departments', 'dost.gov.ph': 'Executive Departments', 'dswd.gov.ph': 'Executive Departments',
+      'tourism.gov.ph': 'Executive Departments', 'dti.gov.ph': 'Executive Departments', 'dotr.gov.ph': 'Executive Departments',
+      'dmw.gov.ph': 'Executive Departments', 'neda.gov.ph': 'Executive Departments', 'philsa.gov.ph': 'Executive Departments',
+
+      'nbi.gov.ph': 'Public Safety & Law Enforcement', 'pnp.gov.ph': 'Public Safety & Law Enforcement',
+      'bjmp.gov.ph': 'Public Safety & Law Enforcement', 'bfp.gov.ph': 'Public Safety & Law Enforcement',
+      'coastguard.gov.ph': 'Public Safety & Law Enforcement',
+
+      'bsp.gov.ph': 'Regulatory & Constitutional Bodies', 'sec.gov.ph': 'Regulatory & Constitutional Bodies',
+      'insurance.gov.ph': 'Regulatory & Constitutional Bodies', 'cda.gov.ph': 'Regulatory & Constitutional Bodies',
+      'fda.gov.ph': 'Regulatory & Constitutional Bodies', 'csc.gov.ph': 'Regulatory & Constitutional Bodies',
+      'comelec.gov.ph': 'Regulatory & Constitutional Bodies', 'coa.gov.ph': 'Regulatory & Constitutional Bodies',
+      'foi.gov.ph': 'Regulatory & Constitutional Bodies', 'bir.gov.ph': 'Regulatory & Constitutional Bodies',
+      'customs.gov.ph': 'Regulatory & Constitutional Bodies', 'lto.gov.ph': 'Regulatory & Constitutional Bodies',
+      'ltfrb.gov.ph': 'Regulatory & Constitutional Bodies',
+
+      'ched.gov.ph': 'Science, Education & Statistics', 'tesda.gov.ph': 'Science, Education & Statistics',
+      'psa.gov.ph': 'Science, Education & Statistics', 'bagong.pagasa.dost.gov.ph': 'Science, Education & Statistics',
+      'phivolcs.dost.gov.ph': 'Science, Education & Statistics', 'namria.gov.ph': 'Science, Education & Statistics',
+
+      'philhealth.gov.ph': 'Social Security / GOCC', 'sss.gov.ph': 'Social Security / GOCC',
+      'gsis.gov.ph': 'Social Security / GOCC', 'pagibigfund.gov.ph': 'Social Security / GOCC',
+
+      'e.gov.ph': 'National Portals', 'gov.ph': 'National Portals', 'officialgazette.gov.ph': 'National Portals'
+    };
+
+    // Brief descriptions of what each agency/site does, shown in the per-site detail modal.
+    // Drafted from general public knowledge of these agencies' mandates — worth a quick
+    // review against each agency's own official page, since this session has no web search
+    // to verify current, exact wording against their own "About" pages.
+    const SITE_DESCRIPTIONS = {
+      'caloocancity.gov.ph': 'Official website of the City Government of Caloocan, Metro Manila.',
+      'laspinascity.gov.ph': 'Official website of the City Government of Las Piñas, Metro Manila.',
+      'makati.gov.ph': 'Official website of the City Government of Makati, Metro Manila.',
+      'malabon.gov.ph': 'Official website of the City Government of Malabon, Metro Manila.',
+      'mandaluyong.gov.ph': 'Official website of the City Government of Mandaluyong, Metro Manila.',
+      'manila.gov.ph': 'Official website of the City Government of Manila, the national capital.',
+      'marikina.gov.ph': 'Official website of the City Government of Marikina, Metro Manila.',
+      'muntinlupacity.gov.ph': 'Official website of the City Government of Muntinlupa, Metro Manila.',
+      'navotas.gov.ph': 'Official website of the City Government of Navotas, Metro Manila.',
+      'paranaquecity.gov.ph': 'Official website of the City Government of Parañaque, Metro Manila.',
+      'pasay.gov.ph': 'Official website of the City Government of Pasay, Metro Manila.',
+      'pasigcity.gov.ph': 'Official website of the City Government of Pasig, Metro Manila.',
+      'pateros.gov.ph': 'Official website of the Municipality of Pateros, Metro Manila.',
+      'quezoncity.gov.ph': 'Official website of the City Government of Quezon City, Metro Manila.',
+      'sanjuancity.gov.ph': 'Official website of the City Government of San Juan, Metro Manila.',
+      'taguig.gov.ph': 'Official website of the City Government of Taguig, Metro Manila.',
+      'valenzuela.gov.ph': 'Official website of the City Government of Valenzuela, Metro Manila.',
+      'mmda.gov.ph': 'Metropolitan Manila Development Authority — traffic management, flood control, and metro-wide services for Metro Manila.',
+
+      'op-proper.gov.ph': 'Office of the President of the Philippines — the executive office of the head of state and government.',
+      'ovp.gov.ph': 'Office of the Vice President of the Philippines.',
+
+      'senate.gov.ph': 'Senate of the Philippines — the upper chamber of Congress.',
+      'congress.gov.ph': 'House of Representatives of the Philippines — the lower chamber of Congress.',
+      'sc.judiciary.gov.ph': 'Supreme Court of the Philippines — the highest court in the country.',
+      'ca.judiciary.gov.ph': 'Court of Appeals — the second-highest court, reviewing appeals from lower courts.',
+      'sb.judiciary.gov.ph': 'Sandiganbayan — the special anti-graft court for public officials.',
+      'cta.judiciary.gov.ph': 'Court of Tax Appeals — handles tax-related disputes and appeals.',
+
+      'dar.gov.ph': 'Department of Agrarian Reform — land reform and agrarian justice programs.',
+      'da.gov.ph': 'Department of Agriculture — agricultural policy, food security, and farmer support.',
+      'dbm.gov.ph': 'Department of Budget and Management — national government budgeting and public spending.',
+      'deped.gov.ph': 'Department of Education — oversight of basic (K-12) public and private education.',
+      'doe.gov.ph': 'Department of Energy — energy policy, supply, and regulation.',
+      'denr.gov.ph': 'Department of Environment and Natural Resources — environmental protection and natural resource management.',
+      'dof.gov.ph': 'Department of Finance — fiscal policy, revenue, and public debt management.',
+      'dfa.gov.ph': 'Department of Foreign Affairs — diplomacy, passports, and overseas Filipino services.',
+      'doh.gov.ph': 'Department of Health — national health policy and public health programs.',
+      'dhsud.gov.ph': 'Department of Human Settlements and Urban Development — housing and urban planning policy.',
+      'dict.gov.ph': 'Department of Information and Communications Technology — ICT policy and digital government infrastructure.',
+      'dilg.gov.ph': 'Department of the Interior and Local Government — oversight of local governments, police, and public order.',
+      'doj.gov.ph': 'Department of Justice — prosecution, legal affairs, and law enforcement coordination.',
+      'dole.gov.ph': 'Department of Labor and Employment — labor policy, worker rights, and employment programs.',
+      'dnd.gov.ph': 'Department of National Defense — national security and the Armed Forces of the Philippines.',
+      'dpwh.gov.ph': 'Department of Public Works and Highways — public infrastructure, roads, and flood control.',
+      'dost.gov.ph': 'Department of Science and Technology — science, research, and technology development.',
+      'dswd.gov.ph': 'Department of Social Welfare and Development — social protection and welfare programs.',
+      'tourism.gov.ph': 'Department of Tourism — tourism promotion and industry regulation.',
+      'dti.gov.ph': 'Department of Trade and Industry — trade policy, business regulation, and consumer protection.',
+      'dotr.gov.ph': 'Department of Transportation — transportation policy across land, air, and maritime sectors.',
+      'dmw.gov.ph': 'Department of Migrant Workers — protection and services for overseas Filipino workers.',
+      'neda.gov.ph': 'National Economic and Development Authority — national economic planning and policy coordination.',
+      'philsa.gov.ph': 'Philippine Space Agency — national space program development and coordination.',
+
+      'nbi.gov.ph': 'National Bureau of Investigation — criminal investigation and forensic services.',
+      'pnp.gov.ph': 'Philippine National Police — national law enforcement agency.',
+      'bjmp.gov.ph': 'Bureau of Jail Management and Penology — management of city and municipal jails.',
+      'bfp.gov.ph': 'Bureau of Fire Protection — fire suppression, prevention, and emergency response.',
+      'coastguard.gov.ph': 'Philippine Coast Guard — maritime safety, search and rescue, and coastal security.',
+
+      'bsp.gov.ph': 'Bangko Sentral ng Pilipinas — the central bank, responsible for monetary policy and currency.',
+      'sec.gov.ph': 'Securities and Exchange Commission — regulation of corporations and securities markets.',
+      'insurance.gov.ph': 'Insurance Commission — regulation of the insurance industry.',
+      'cda.gov.ph': 'Cooperative Development Authority — registration and regulation of cooperatives.',
+      'fda.gov.ph': 'Food and Drug Administration — regulation of food, drugs, medical devices, and cosmetics.',
+      'csc.gov.ph': 'Civil Service Commission — central personnel agency for government employees.',
+      'comelec.gov.ph': 'Commission on Elections — administration of national and local elections.',
+      'coa.gov.ph': 'Commission on Audit — auditing of government funds and accounts.',
+      'foi.gov.ph': 'Freedom of Information portal — public requests for government information and records.',
+      'bir.gov.ph': 'Bureau of Internal Revenue — national tax collection and administration.',
+      'customs.gov.ph': 'Bureau of Customs — import/export regulation and customs duty collection.',
+      'lto.gov.ph': 'Land Transportation Office — vehicle registration and driver licensing.',
+      'ltfrb.gov.ph': 'Land Transportation Franchising and Regulatory Board — regulation of public land transport franchises.',
+
+      'ched.gov.ph': 'Commission on Higher Education — oversight and policy for colleges and universities.',
+      'tesda.gov.ph': 'Technical Education and Skills Development Authority — technical-vocational education and skills training.',
+      'psa.gov.ph': 'Philippine Statistics Authority — official statistics, census, and civil registration.',
+      'bagong.pagasa.dost.gov.ph': 'PAGASA — the national weather, climate, and flood forecasting agency.',
+      'phivolcs.dost.gov.ph': 'PHIVOLCS — monitors volcanic activity, earthquakes, and tsunami hazards nationwide.',
+      'namria.gov.ph': 'National Mapping and Resource Information Authority — national mapping, surveying, and geospatial data.',
+
+      'philhealth.gov.ph': 'PhilHealth — the national health insurance program.',
+      'sss.gov.ph': 'Social Security System — social insurance for private-sector and self-employed workers.',
+      'gsis.gov.ph': 'Government Service Insurance System — social insurance for government employees.',
+      'pagibigfund.gov.ph': 'Pag-IBIG Fund — national savings and housing loan program for workers.',
+
+      'e.gov.ph': 'The national government services portal, a directory of online government transactions.',
+      'gov.ph': 'The official web portal of the Government of the Philippines.',
+      'officialgazette.gov.ph': 'The Official Gazette — the official journal of the Republic, publishing laws and official issuances.'
+    };
+
+    const CATEGORY_ORDER = [
+      'Local Government (LGU)', 'Office of the President & VP', 'Legislative & Judiciary',
+      'Executive Departments', 'Public Safety & Law Enforcement', 'Regulatory & Constitutional Bodies',
+      'Science, Education & Statistics', 'Social Security / GOCC', 'National Portals'
+    ];
+    function categoryFor(hostname) { return CATEGORY_MAP[hostname] || 'Other'; }
+    function logoFor(hostname) { return `https://www.google.com/s2/favicons?sz=64&domain=${hostname}`; }
+
+    const ERROR_LABELS = {
+      ECONNREFUSED: 'Connection Refused',
+      ENOTFOUND: 'DNS Not Found',
+      ECONNRESET: 'Connection Reset',
+      TIMEOUT: 'Timeout',
+      EHOSTUNREACH: 'Host Unreachable',
+      ETIMEDOUT: 'Timeout'
+    };
+    function friendlyError(code) { return ERROR_LABELS[code] || code; }
+
+    let globalScanData = [];
+    let globalTimestamp = '';
+    let currentFilter = 'all';
+    let groupingEnabled = false;
+    let firstLoadDone = false;
+    let notificationsEnabled = false;
+    let previousUpState = {}; // url -> boolean, used to detect new outages for notifications
+
+    function closeModal() {
+      const modal = document.getElementById('welcomeModal');
+      modal.style.opacity = '0';
+      setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && document.getElementById('welcomeModal').style.display !== 'none') closeModal();
+      if (e.key === 'Escape') closeDetailModal();
+    });
+
+    // ---- Per-site detail modal ----
+    function openDetailModal(item) {
+      const hostname = new URL(item.url).hostname.replace('www.', '');
+      document.getElementById('detailLogo').src = logoFor(hostname);
+      document.getElementById('detailTitle').innerText = hostname;
+      document.getElementById('detailLink').href = item.url;
+      document.getElementById('detailDescription').innerText = SITE_DESCRIPTIONS[hostname] || '';
+      document.getElementById('detailStatus').innerText = item.status || 0;
+      const uptimeEl = document.getElementById('detailUptime');
+      uptimeEl.innerText = `${item.uptime}%`;
+      uptimeEl.style.color = (item.status >= 400 && item.status < 500) ? 'var(--yellow)'
+        : (item.uptime < 70 ? 'var(--red)' : (item.uptime < 90 ? 'var(--yellow)' : 'var(--green)'));
+      document.getElementById('detailLatency').innerText = item.latency ? `${item.latency} ms` : '--';
+
+      const banner = document.getElementById('detailDownBanner');
+      if (item.downSince) {
+        banner.style.display = 'block';
+        banner.innerText = `Currently down since ${new Date(item.downSince).toLocaleString()}`;
+      } else {
+        banner.style.display = 'none';
+      }
+
+      const chart = document.getElementById('detailChart');
+      const fullHistory = item.historyFull && item.historyFull.length ? item.historyFull : (item.history || []);
+      chart.innerHTML = fullHistory.map(v =>
+        `<div class="dbar" style="height:${v ? 100 : 30}%; background:${v ? 'var(--green)' : 'var(--red)'}"></div>`
+      ).join('') || '<span class="incident-empty">No history yet</span>';
+
+      const incidentsEl = document.getElementById('detailIncidents');
+      const incidents = item.incidents || [];
+      if (incidents.length === 0) {
+        incidentsEl.innerHTML = '<div class="incident-empty">No recorded downtime yet.</div>';
+      } else {
+        incidentsEl.innerHTML = incidents.map(inc => {
+          const start = new Date(inc.start);
+          const end = new Date(inc.end);
+          const mins = Math.max(1, Math.round((end - start) / 60000));
+          return `<div class="incident-item">
+            <span>${start.toLocaleString()}</span>
+            <span class="dur">${mins} min</span>
+          </div>`;
+        }).join('');
+      }
+
+      const modal = document.getElementById('detailModal');
+      modal.style.display = 'flex';
+      document.getElementById('detailCloseBtn').focus();
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').style.display = 'none';
+    }
+    document.getElementById('detailCloseBtn').addEventListener('click', closeDetailModal);
+    document.getElementById('detailModal').addEventListener('click', (e) => {
+      if (e.target.id === 'detailModal') closeDetailModal();
+    });
+
+    // ---- Filtering / sorting / grouping ----
+    function setFilter(filterType) {
+      currentFilter = filterType;
+      document.querySelectorAll('.filter-group .filter-btn').forEach(btn => {
+        if (btn.id.startsWith('filter-')) btn.classList.remove('active');
+      });
+      document.getElementById(`filter-${filterType}`).classList.add('active');
+      renderCards();
+    }
+
+    function toggleGrouping() {
+      groupingEnabled = !groupingEnabled;
+      document.getElementById('groupToggle').classList.toggle('active', groupingEnabled);
+      renderCards();
+    }
+
+    function sortResults(list) {
+      const mode = document.getElementById('sortSelect').value;
+      const copy = [...list];
+      if (mode === 'latency') copy.sort((a, b) => (b.latency || 0) - (a.latency || 0));
+      else if (mode === 'uptime') copy.sort((a, b) => (a.uptime || 0) - (b.uptime || 0));
+      else if (mode === 'alpha') copy.sort((a, b) => new URL(a.url).hostname.localeCompare(new URL(b.url).hostname));
+      return copy;
+    }
+
+    function buildCardHtml(item) {
+      const domain = new URL(item.url).hostname.replace('www.', '');
+      let statusClass = 'code-err', borderClass = 'card-err', dotType = 'red', statusText = friendlyError(item.error) || 'ERR';
+      const isCertIssue = item.error === 'INSECURE_CERT';
+
+      if (isCertIssue) {
+        statusClass = 'code-4xx'; borderClass = 'card-4xx'; dotType = 'yellow'; statusText = 'CERT ISSUE';
+      } else if (item.status >= 200 && item.status < 300) {
+        statusClass = 'code-2xx'; borderClass = 'card-2xx'; dotType = 'green'; statusText = 'ONLINE';
+      } else if (item.status >= 300 && item.status < 400) {
+        statusClass = 'code-3xx'; borderClass = 'card-2xx'; dotType = 'green'; statusText = 'REDIRECT';
+      } else if (item.status >= 400 && item.status < 500) {
+        statusClass = 'code-4xx'; borderClass = 'card-4xx'; dotType = 'yellow';
+        statusText = (item.status === 403 || item.status === 404) ? 'BLOCKED (WAF)' : 'CLIENT ERR';
+      } else if (item.status >= 500 && item.status < 600) {
+        statusText = 'SERVER ERR';
+      }
+
+      let uptimeClass = 'uptime-badge';
+      if (isCertIssue || (item.status >= 400 && item.status < 500)) uptimeClass += ' low';
+      else if (item.uptime < 90 && item.uptime >= 70) uptimeClass += ' low';
+      else if (item.uptime < 70) uptimeClass += ' critical';
+
+      const isBlocked = item.status === 403 || item.status === 404;
+      const lockIconSvg = `<rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 018 0v4"></path>`;
+      const warnIconSvg = `<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path>`;
+      const codeDisplayHtml = (isBlocked || isCertIssue)
+        ? `<div class="blocked-display ${statusClass}">
+             <svg class="blocked-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               ${isCertIssue ? warnIconSvg : lockIconSvg}
+             </svg>
+             <span class="blocked-code">${isCertIssue ? `CERT ISSUE (${item.status})` : `HTTP ${item.status}`}</span>
+           </div>`
+        : `<div class="code-display ${statusClass}">${item.status || 0}</div>`;
+
+      const historyBarsHtml = (item.history || []).map(val => `<div class="bar bar-${val}"></div>`).join('');
+
+      const card = document.createElement('div');
+      card.className = `card ${borderClass}`;
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-label', `${domain}, status ${statusText}, ${item.uptime}% uptime. Press Enter for details.`);
+      card.addEventListener('click', () => openDetailModal(item));
+      card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetailModal(item); } });
+
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="site-name-group">
+            <img class="site-logo" src="${logoFor(domain)}" alt="" loading="lazy" onerror="this.onerror=null;this.style.background='var(--border)';this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%277%27 fill=%27%2364748b%27/%3E%3C/svg%3E'">
+            <span class="site-name" title="${item.url}">${domain}</span>
+          </div>
+          <span class="status-dot dot-${dotType}"></span>
+        </div>
+        ${codeDisplayHtml}
+        <div class="uptime-bar-container">
+          <span class="${uptimeClass}">${item.uptime}% Uptime</span>
+          <div class="history-bars">${historyBarsHtml}</div>
+        </div>
+        <div class="card-footer">
+          <span>${statusText}</span>
+          <span>${item.latency ? item.latency + ' ms' : '--'}</span>
+        </div>
+      `;
+      return card;
+    }
+
+    function renderCards() {
+      const container = document.getElementById('gridContainer');
+      const searchVal = document.getElementById('searchInput').value.toLowerCase();
+      container.innerHTML = '';
+
+      const filteredResults = globalScanData.filter(item => {
+        const domain = new URL(item.url).hostname.toLowerCase();
+        const matchesSearch = domain.includes(searchVal);
+        const isOnline = item.status >= 200 && item.status < 400;
+        let matchesFilter = true;
+        if (currentFilter === 'online') matchesFilter = isOnline;
+        if (currentFilter === 'errors') matchesFilter = !isOnline;
+        return matchesSearch && matchesFilter;
+      });
+
+      if (filteredResults.length === 0) {
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        grid.innerHTML = `<div class="empty-state">No sites match "${searchVal || ''}" with the current filter. Try clearing the search or switching filters.</div>`;
+        container.appendChild(grid);
+        return;
+      }
+
+      if (!groupingEnabled) {
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        sortResults(filteredResults).forEach(item => grid.appendChild(buildCardHtml(item)));
+        container.appendChild(grid);
+        return;
+      }
+
+      // Grouped view: bucket by category, keep a stable category order.
+      const buckets = {};
+      filteredResults.forEach(item => {
+        const hostname = new URL(item.url).hostname.replace('www.', '');
+        const cat = categoryFor(hostname);
+        (buckets[cat] = buckets[cat] || []).push(item);
+      });
+      const orderedCats = [...CATEGORY_ORDER.filter(c => buckets[c]), ...Object.keys(buckets).filter(c => !CATEGORY_ORDER.includes(c))];
+
+      orderedCats.forEach(cat => {
+        const heading = document.createElement('div');
+        heading.className = 'category-heading';
+        heading.innerHTML = `${cat} <span class="count">(${buckets[cat].length})</span>`;
+        container.appendChild(heading);
+
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        sortResults(buckets[cat]).forEach(item => grid.appendChild(buildCardHtml(item)));
+        container.appendChild(grid);
+      });
+    }
+
+    function renderSkeleton(count = 24) {
+      const container = document.getElementById('gridContainer');
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      for (let i = 0; i < count; i++) {
+        const card = document.createElement('div');
+        card.className = 'card card-2xx skeleton';
+        card.innerHTML = `
+          <div class="skel-line" style="height:14px; width:70%; margin-bottom:10px;"></div>
+          <div class="skel-line" style="height:32px; width:40%; margin:6px auto;"></div>
+          <div class="skel-line" style="height:10px; width:90%; margin-top:10px;"></div>
+        `;
+        grid.appendChild(card);
+      }
+      container.innerHTML = '';
+      container.appendChild(grid);
+    }
+
+    // ---- Relative "last checked" timestamp ----
+    let lastScanDate = null;
+    function tickRelativeTime() {
+      const el = document.getElementById('timestamp');
+      if (!lastScanDate) { el.innerText = 'Loading dashboard...'; return; }
+      const secs = Math.max(0, Math.floor((Date.now() - lastScanDate.getTime()) / 1000));
+      let rel;
+      if (secs < 5) rel = 'just now';
+      else if (secs < 60) rel = `${secs}s ago`;
+      else rel = `${Math.floor(secs / 60)}m ${secs % 60}s ago`;
+      el.innerText = `Last checked: ${rel} (${globalTimestamp})`;
+    }
+    setInterval(tickRelativeTime, 1000);
+
+    // ---- Notifications ----
+    function toggleNotifications() {
+      if (!('Notification' in window)) { alert('This browser does not support notifications.'); return; }
+      if (!notificationsEnabled) {
+        Notification.requestPermission().then(perm => {
+          if (perm === 'granted') {
+            notificationsEnabled = true;
+            document.getElementById('notifyBtn').classList.add('toggled');
+            document.getElementById('notifyBtn').setAttribute('aria-pressed', 'true');
+            document.getElementById('notifyBtnText').innerText = 'Notifications On';
+          }
+        });
+      } else {
+        notificationsEnabled = false;
+        document.getElementById('notifyBtn').classList.remove('toggled');
+        document.getElementById('notifyBtn').setAttribute('aria-pressed', 'false');
+        document.getElementById('notifyBtnText').innerText = 'Notify Me';
+      }
+    }
+
+    function checkForNewOutages(newData) {
+      if (!notificationsEnabled) { updatePreviousUpState(newData); return; }
+      newData.forEach(item => {
+        const isUp = item.status >= 200 && item.status < 400;
+        const wasUp = previousUpState[item.url];
+        if (wasUp === true && isUp === false) {
+          const hostname = new URL(item.url).hostname.replace('www.', '');
+          new Notification('Site down', { body: `${hostname} just went down (${item.error || item.status})`, icon: logoFor(hostname) });
+        }
+      });
+      updatePreviousUpState(newData);
+    }
+    function updatePreviousUpState(data) {
+      data.forEach(item => { previousUpState[item.url] = item.status >= 200 && item.status < 400; });
+    }
+
+    // ---- Applying fresh scan data (shared by fetch + SSE paths) ----
+    function applyScanData(data) {
+      globalTimestamp = data.timestamp;
+      lastScanDate = new Date();
+      tickRelativeTime();
+      const newResults = data.results || [];
+      checkForNewOutages(newResults);
+      globalScanData = newResults;
+
+      let c2 = 0, c3 = 0, c4 = 0, ce = 0;
+      globalScanData.forEach(item => {
+        if (item.status >= 200 && item.status < 300) c2++;
+        else if (item.status >= 300 && item.status < 400) c3++;
+        else if (item.status >= 400 && item.status < 500) c4++;
+        else ce++;
+      });
+      document.getElementById('cnt-2xx').innerText = c2;
+      document.getElementById('cnt-3xx').innerText = c3;
+      document.getElementById('cnt-4xx').innerText = c4;
+      document.getElementById('cnt-err').innerText = ce;
+
+      firstLoadDone = true;
+      renderCards();
+    }
+
+    let refreshCooldownUntil = 0;
+    let refreshCooldownTimer = null;
+
+    async function updateDashboard() {
+      const btn = document.getElementById('manualRefreshBtn');
+      const icon = document.getElementById('refreshIcon');
+      const btnText = document.getElementById('refreshBtnText');
+      btn.disabled = true;
+      icon.classList.add('spinning');
+      btnText.innerText = 'Updating...';
+      try {
+        const res = await fetch('/api/scan');
+        const data = await res.json();
+        applyScanData(data);
+      } catch (e) {
+        console.error('Fetch error:', e);
+      } finally {
+        icon.classList.remove('spinning');
+        startRefreshCooldown();
+      }
+    }
+
+    function startRefreshCooldown(seconds = 30) {
+      const btn = document.getElementById('manualRefreshBtn');
+      const btnText = document.getElementById('refreshBtnText');
+      refreshCooldownUntil = Date.now() + seconds * 1000;
+      btn.disabled = true;
+      clearInterval(refreshCooldownTimer);
+      const tick = () => {
+        const remaining = Math.ceil((refreshCooldownUntil - Date.now()) / 1000);
+        if (remaining <= 0) {
+          clearInterval(refreshCooldownTimer);
+          btn.disabled = false;
+          btnText.innerText = 'Refresh';
+        } else {
+          btnText.innerText = `Refresh (${remaining}s)`;
+        }
+      };
+      tick();
+      refreshCooldownTimer = setInterval(tick, 1000);
+    }
+
+    function manualRefresh() {
+      if (Date.now() < refreshCooldownUntil) return; // still cooling down, ignore
+      updateDashboard();
+    }
+
+    // ---- Live updates via SSE, falling back to polling if the stream fails ----
+    function connectLiveStream() {
+      if (!('EventSource' in window)) { setInterval(updateDashboard, 90000); return; }
+      const es = new EventSource('/api/stream');
+      es.onmessage = (e) => {
+        try { applyScanData(JSON.parse(e.data)); } catch (err) { console.error('SSE parse error', err); }
+      };
+      es.onerror = () => {
+        // Browser's EventSource auto-reconnects; just make sure we still have a periodic fallback fetch.
+        console.warn('SSE connection issue — EventSource will auto-retry.');
+      };
+    }
+
+    function exportCSV() {
+      if (!globalScanData || globalScanData.length === 0) { alert('No scan data available to export.'); return; }
+      const header = ['Domain', 'URL', 'HTTP Code', 'Status', 'Uptime %', 'Latency (ms)'];
+      const rows = globalScanData.map(item => {
+        const domain = new URL(item.url).hostname.replace('www.', '');
+        let stateStr = 'ERROR';
+        if (item.error === 'INSECURE_CERT') stateStr = `CERT ISSUE (${item.status})`;
+        else if (item.status >= 200 && item.status < 300) stateStr = 'ONLINE';
+        else if (item.status >= 300 && item.status < 400) stateStr = 'REDIRECT';
+        else if (item.status >= 400 && item.status < 500) stateStr = (item.status === 403 || item.status === 404) ? 'BLOCKED (WAF)' : 'CLIENT ERR';
+        else if (item.status >= 500 && item.status < 600) stateStr = 'SERVER ERR';
+        return [domain, item.url, item.status || 0, stateStr, item.uptime, item.latency || ''];
+      });
+      const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Gov_Web_Monitor_${Date.now()}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function exportPDF() {
+      if (!globalScanData || globalScanData.length === 0) {
+        alert('No scan data available to export.');
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42);
+      doc.text('PHILIPPINES GOV WEB MONITOR REPORT', 14, 15);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated: ${globalTimestamp}`, 14, 21);
+      doc.text('Created by: Emmanuel Bosing', 14, 26);
+
+      let c2 = 0, c3 = 0, c4 = 0, ce = 0;
+      globalScanData.forEach(item => {
+        if (item.status >= 200 && item.status < 300) c2++;
+        else if (item.status >= 300 && item.status < 400) c3++;
+        else if (item.status >= 400 && item.status < 500) c4++;
+        else ce++;
+      });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Total Monitored: ${globalScanData.length}  |  2xx OK: ${c2}  |  3xx Redir: ${c3}  |  4xx Err: ${c4}  |  Errors: ${ce}`, 14, 33);
+
+      const tableRows = globalScanData.map((item, idx) => {
+        const domain = new URL(item.url).hostname.replace('www.', '');
+        let stateStr = 'ERROR';
+        if (item.error === 'INSECURE_CERT') stateStr = `CERT ISSUE (${item.status})`;
+        else if (item.status >= 200 && item.status < 300) stateStr = 'ONLINE';
+        else if (item.status >= 300 && item.status < 400) stateStr = 'REDIRECT';
+        else if (item.status >= 400 && item.status < 500) stateStr = (item.status === 403 || item.status === 404) ? 'BLOCKED (WAF)' : 'CLIENT ERR';
+        else if (item.status >= 500 && item.status < 600) stateStr = 'SERVER ERR';
+
+        return [
+          idx + 1,
+          domain,
+          item.status || 0,
+          stateStr,
+          `${item.uptime}%`,
+          item.latency ? `${item.latency} ms` : '--'
+        ];
+      });
+
+      doc.autoTable({
+        startY: 38,
+        head: [['#', 'Domain', 'HTTP Code', 'Status', 'Uptime', 'Latency']],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+        bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 65 },
+          2: { cellWidth: 25, halign: 'center' },
+          3: { cellWidth: 30, halign: 'center' },
+          4: { cellWidth: 25, halign: 'center' },
+          5: { cellWidth: 25, halign: 'right' }
+        },
+        didDrawPage: function (data) {
+          const str = `Page ${data.pageCount} | Philippines Gov Web Monitor - Designed by Emmanuel Bosing`;
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(str, 14, doc.internal.pageSize.height - 10);
+        }
+      });
+
+      doc.save(`Gov_Web_Monitor_Report_${Date.now()}.pdf`);
+    }
+
+    // ---- Theme toggle (light/dark) ----
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.getElementById('themeIcon').innerText = '☀️';
+        document.getElementById('themeBtnText').innerText = 'Light Mode';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.getElementById('themeIcon').innerText = '🌙';
+        document.getElementById('themeBtnText').innerText = 'Dark Mode';
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const next = isDark ? 'light' : 'dark';
+      localStorage.setItem('theme', next);
+      applyTheme(next);
+    }
+
+    function initTheme() {
+      // Theme itself is already applied by the blocking script in <head> (avoids flash);
+      // this just syncs the button's icon/label to match.
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      applyTheme(isDark ? 'dark' : 'light');
+    }
+    initTheme();
+
+    renderSkeleton();
+    updateDashboard().then(connectLiveStream);
+  </script>
+</body>
+</html>
