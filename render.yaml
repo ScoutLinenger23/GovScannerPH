@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: gov-scanner-ph
-    env: docker
-    plan: free
-    branch: main
-    autoDeploy: true

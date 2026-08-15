@@ -1086,17 +1086,9 @@
       updateDashboard();
     }
 
-    // ---- Live updates via SSE, falling back to polling if the stream fails ----
+    // ---- Live updates via polling (scans run on a schedule server-side, roughly every 2 min) ----
     function connectLiveStream() {
-      if (!('EventSource' in window)) { setInterval(updateDashboard, 90000); return; }
-      const es = new EventSource('/api/stream');
-      es.onmessage = (e) => {
-        try { applyScanData(JSON.parse(e.data)); } catch (err) { console.error('SSE parse error', err); }
-      };
-      es.onerror = () => {
-        // Browser's EventSource auto-reconnects; just make sure we still have a periodic fallback fetch.
-        console.warn('SSE connection issue — EventSource will auto-retry.');
-      };
+      setInterval(updateDashboard, 60000);
     }
 
     function exportCSV() {
